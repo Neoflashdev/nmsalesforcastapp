@@ -27,11 +27,17 @@ export default function RoutesScreen() {
     return bVal - aVal;
   });
 
-  const expectedTotal = items.reduce((sum: number, c: any) => sum + (c.routeData.find((r: any) => r.routeId === activeRoute)?.avgPerVisit || 0), 0);
+  const expectedTotal = items.reduce((sum: number, c: any) => {
+    const rd = c.routeData.find((r: any) => r.routeId === activeRoute);
+    return sum + (rd ? (rd.aiVisitForecast !== undefined ? Math.round(rd.aiVisitForecast) : rd.avgPerVisit) : 0);
+  }, 0);
 
   const renderItem = ({ item, index }: { item: any, index: number }) => {
     const rd = item.routeData.find((r: any) => r.routeId === activeRoute);
     if (!rd) return null;
+
+    const aiForecast = rd.aiVisitForecast !== undefined ? rd.aiVisitForecast : rd.avgPerVisit;
+    const needOrder = Math.max(0, Math.round(aiForecast - item.currentStock));
 
     return (
       <MotiView
@@ -54,16 +60,20 @@ export default function RoutesScreen() {
             <Text style={styles.statLabel}>Avg / Visit</Text>
             <Text style={styles.statValue}>{rd.avgPerVisit}</Text>
           </View>
+        </View>
+        <View style={[styles.statsRow, { borderTopWidth: 0, paddingTop: 4 }]}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Expected</Text>
-            <Text style={[styles.statValue, { color: item.currentStock >= rd.avgPerVisit ? theme.colors.green : theme.colors.red }]}>
-              {rd.avgPerVisit}
-            </Text>
+            <Text style={styles.statLabel}>AI Forecast</Text>
+            <Text style={[styles.statValue, { color: theme.colors.blue }]}>{Math.round(aiForecast)}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>Stock</Text>
-            <Text style={[styles.statValue, { color: item.currentStock < rd.avgPerVisit ? theme.colors.red : theme.colors.green }]}>
-              {item.currentStock}
+            <Text style={styles.statValue}>{item.currentStock}</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Need Order</Text>
+            <Text style={[styles.statValue, { color: needOrder > 0 ? theme.colors.red : theme.colors.green }]}>
+              {needOrder}
             </Text>
           </View>
         </View>

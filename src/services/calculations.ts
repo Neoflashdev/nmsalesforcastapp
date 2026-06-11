@@ -314,6 +314,7 @@ export function computeAll(salesHeaders: any[], salesDetails: any[], products: a
 
     // --- XGBoost Forecasting ---
     let xgbForecast = 0;
+    const aiVisitForecasts = new Map<string, number>();
     if (uniqueRoutes.size > 0) {
       for (const rid of Array.from(uniqueRoutes) as string[]) {
         const routeDetails = details.filter((d: any) => {
@@ -402,6 +403,10 @@ export function computeAll(salesHeaders: any[], salesDetails: any[], products: a
         }, today);
 
         xgbForecast += routePrediction;
+
+        const avgMonthlyVisits = Math.max((rTot?.visits || 1) / totalMonths, 0.5);
+        const aiVisitForecast = Math.round((routePrediction / avgMonthlyVisits) * 10) / 10;
+        aiVisitForecasts.set(rid, aiVisitForecast);
       }
     }
 
@@ -537,6 +542,7 @@ export function computeAll(salesHeaders: any[], salesDetails: any[], products: a
     const routeData = [];
     for (const [rid, rd] of Array.from(routeTotals.entries()) as any) {
       const r = routeMap.get(rid);
+      const aiForecast = aiVisitForecasts.get(rid) ?? Math.round(rd.total / rd.visits);
       routeData.push({
         routeId: rid,
         routeName: r ? r.route_name : rid,
@@ -544,6 +550,7 @@ export function computeAll(salesHeaders: any[], salesDetails: any[], products: a
         total: rd.total,
         visits: rd.visits,
         avgPerVisit: Math.round(rd.total / rd.visits),
+        aiVisitForecast: aiForecast,
       });
     }
 

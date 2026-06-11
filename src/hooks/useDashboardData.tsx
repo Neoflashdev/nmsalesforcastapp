@@ -437,17 +437,19 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
         const routeCalcs = calculations.filter((c: any) => c.routeData.some((rd: any) => rd.routeId === r.id));
         const expectedUnits = routeCalcs.reduce((sum: number, c: any) => {
           const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
-          return sum + (rd ? rd.avgPerVisit : 0);
+          return sum + (rd ? (rd.aiVisitForecast !== undefined ? rd.aiVisitForecast : rd.avgPerVisit) : 0);
         }, 0);
         const expectedRevenue = routeCalcs.reduce((sum: number, c: any) => {
           const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
           if (!rd) return sum;
-          return sum + rd.avgPerVisit * (c.sellingPrice || 0);
+          const val = rd.aiVisitForecast !== undefined ? rd.aiVisitForecast : rd.avgPerVisit;
+          return sum + val * (c.sellingPrice || 0);
         }, 0);
         const expectedProfit = routeCalcs.reduce((sum: number, c: any) => {
           const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
           if (!rd) return sum;
-          return sum + rd.avgPerVisit * ((c.sellingPrice || 0) - (c.costPrice || 0));
+          const val = rd.aiVisitForecast !== undefined ? rd.aiVisitForecast : rd.avgPerVisit;
+          return sum + val * ((c.sellingPrice || 0) - (c.costPrice || 0));
         }, 0);
         const totalVisits = routeCalcs.reduce((sum: number, c: any) => {
           const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
