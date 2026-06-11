@@ -12,18 +12,18 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip' # caching pip dependencies for faster runs
+          cache: 'pip' # cache pip dependencies using requirements.txt
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy xgboost scikit-learn
+          pip install -r requirements.txt
 
       - name: Execute Model Retraining & Upload
         env:
