@@ -461,6 +461,103 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
               return sum + (rd ? rd.visits : 0);
             }, 0) / routeCalcs.length)
           : 0;
+        // Rule-Based Expected Revenue Calculation for Route r.id
+        const routeDetails = filteredDetails.filter((d: any) => (d.route_id || 'unknown') === r.id);
+        const routeHeaderIds = new Set(routeDetails.map((d: any) => d.sales_header_id));
+        const routeHeaders = filteredHeaders.filter((h: any) => routeHeaderIds.has(h.id) || h.route === r.id);
+
+        const dailyRevenueMap = new Map<string, { totalRevenue: number; billsCount: number }>();
+        for (const h of routeHeaders) {
+          const dateStr = (h.date || h.created_at || '').substring(0, 10);
+          if (!dateStr) continue;
+          if (!dailyRevenueMap.has(dateStr)) {
+            dailyRevenueMap.set(dateStr, { totalRevenue: 0, billsCount: 0 });
+          }
+          const dayData = dailyRevenueMap.get(dateStr)!;
+          dayData.totalRevenue += h.grand_total || 0;
+          dayData.billsCount += 1;
+        }
+
+        const dailyDataList = Array.from(dailyRevenueMap.entries())
+          .map(([date, data]) => ({ date, ...data }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        const totalRouteRevenue = dailyDataList.reduce((sum, d) => sum + d.totalRevenue, 0);
+        const validVisits = dailyDataList.filter(d => d.billsCount >= 3);
+        const validVisitsCount = validVisits.length;
+
+        const allVisitAvgRevenue = validVisitsCount > 0 
+          ? totalRouteRevenue / validVisitsCount 
+          : (dailyDataList.length > 0 ? totalRouteRevenue / dailyDataList.length : 0);
+
+        const last2Visits = validVisits.slice(-2);
+        const last2AvgRevenue = last2Visits.length > 0
+          ? last2Visits.reduce((sum, d) => sum + d.totalRevenue, 0) / last2Visits.length
+          : allVisitAvgRevenue;
+
+        const last3Visits = validVisits.slice(-3);
+        const last3AvgRevenue = last3Visits.length > 0
+          ? last3Visits.reduce((sum, d) => sum + d.totalRevenue, 0) / last3Visits.length
+          : allVisitAvgRevenue;
+
+        const last6Visits = validVisits.slice(-6);
+        const last6AvgRevenue = last6Visits.length > 0
+          ? last6Visits.reduce((sum, d) => sum + d.totalRevenue, 0) / last6Visits.length
+          : allVisitAvgRevenue;
+
+        // Blended base visit revenue
+        let baseVisitRevenue = allVisitAvgRevenue;
+        if (validVisitsCount >= 3) {
+          baseVisitRevenue = last2AvgRevenue * 0.5 + last3AvgRevenue * 0.3 + last6AvgRevenue * 0.2;
+        } else if (validVisitsCount === 2) {
+          baseVisitRevenue = last2AvgRevenue * 0.7 + allVisitAvgRevenue * 0.3;
+        } else if (validVisitsCount === 1) {
+          baseVisitRevenue = last2AvgRevenue;
+        }
+
+        // Monthly revenue growth rates
+        const monthlyRevenueMap = new Map<string, number>();
+        for (const h of routeHeaders) {
+          const monthStr = (h.date || h.created_at || '').substring(0, 7);
+          if (!monthStr) continue;
+          monthlyRevenueMap.set(monthStr, (monthlyRevenueMap.get(monthStr) || 0) + (h.grand_total || 0));
+        }
+
+        const monthlyDataList = Array.from(monthlyRevenueMap.entries())
+          .map(([month, rev]) => ({ month, rev }))
+          .sort((a, b) => a.month.localeCompare(b.month));
+
+        let lastMonthGrowthRate = 0;
+        if (monthlyDataList.length >= 2) {
+          const last = monthlyDataList[monthlyDataList.length - 1].rev;
+          const prev = monthlyDataList[monthlyDataList.length - 2].rev;
+          lastMonthGrowthRate = prev > 0 ? (last - prev) / prev : 0;
+        }
+
+        let last3MonthGrowthRate = 0;
+        if (monthlyDataList.length >= 6) {
+          const last3Sum = monthlyDataList.slice(-3).reduce((sum, m) => sum + m.rev, 0);
+          const prior3Sum = monthlyDataList.slice(-6, -3).reduce((sum, m) => sum + m.rev, 0);
+          last3MonthGrowthRate = prior3Sum > 0 ? (last3Sum - prior3Sum) / prior3Sum : 0;
+        }
+
+        let overallGrowthRate = lastMonthGrowthRate;
+        if (monthlyDataList.length >= 3) {
+          const growthRates: number[] = [];
+          for (let i = 1; i < monthlyDataList.length; i++) {
+            const prev = monthlyDataList[i - 1].rev;
+            const curr = monthlyDataList[i].rev;
+            if (prev > 0) growthRates.push((curr - prev) / prev);
+          }
+          overallGrowthRate = growthRates.length > 0 
+            ? growthRates.reduce((s, g) => s + g, 0) / growthRates.length 
+            : 0;
+        }
+
+        const blendedGrowth = lastMonthGrowthRate * 0.5 + last3MonthGrowthRate * 0.3 + overallGrowthRate * 0.2;
+        const growthMultiplier = Math.max(0.75, Math.min(1.25, 1 + blendedGrowth));
+        const ruleExpectedRevenue = Math.round(baseVisitRevenue * growthMultiplier);
+
         return {
           routeId: r.id,
           routeName: r.route_name,
@@ -468,8 +565,11 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
           expectedUnits: Math.round(expectedUnits),
           expectedRevenue: Math.round(expectedRevenue),
           expectedProfit: Math.round(expectedProfit),
+          ruleExpectedRevenue,
           productCount: routeCalcs.length,
           avgBillsPerVisit,
+          monthlyRevenueHistory: monthlyDataList,
+          dailyRevenueHistory: dailyDataList,
         };
       }).filter((r: any) => r.productCount > 0)
         .sort((a: any, b: any) => b.expectedRevenue - a.expectedRevenue);
