@@ -380,14 +380,31 @@ def train():
     for rid in full_route_sales:
         route_encodings_final[rid] = full_route_sales.get(rid, 0) / total_months_full
         
+    # --- Determine model version ---
+    # Fetch existing model_version from last metadata in storage, then increment
+    model_version = 'v1'
+    try:
+        meta_url = f"{SUPABASE_URL}/storage/v1/object/public/ai-models/model_metadata.json"
+        with urllib.request.urlopen(meta_url) as resp:
+            old_meta = json.loads(resp.read().decode('utf-8'))
+            old_ver = old_meta.get('model_version', 'v0')
+            # Parse number from 'v12' -> 12, then +1
+            old_num = int(old_ver.replace('v', '').strip()) if old_ver.replace('v', '').strip().isdigit() else 0
+            model_version = f'v{old_num + 1}'
+    except Exception:
+        model_version = 'v1'  # First ever run
+    print(f"Model version: {model_version}")
+
     # Create metadata JSON
+    trained_at_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     metadata = {
+        "model_version": model_version,
         "features": features,
         "base_score": float(model.base_score) if model.base_score is not None else 0.5,
         "item_encodings": item_encodings_final,
         "route_encodings": route_encodings_final,
         "last_trained_month": max_date.strftime('%Y-%m') if not pd.isna(max_date) else 'N/A',
-        "trained_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "trained_at": trained_at_str,
         "global_averages": {
             "item_encoding_fallback": float(np.mean(list(item_encodings_final.values()))) if item_encodings_final else 0.0,
             "route_encoding_fallback": float(np.mean(list(route_encodings_final.values()))) if route_encodings_final else 0.0,
@@ -506,6 +523,236 @@ def train():
     print("Uploading models to Supabase Storage bucket 'ai-models'...")
     upload_file(os.path.join(out_dir, 'model.json'), 'model.json')
     upload_file(os.path.join(out_dir, 'model_metadata.json'), 'model_metadata.json')
+
+    # ─────────────────────────────────────────────────────────
+    # FORECAST ACCURACY TRACKING
+    # ─────────────────────────────────────────────────────────
+
+    def supabase_upsert(table, records):
+        """Upsert a list of dicts into a Supabase table via REST API."""
+        if not records:
+            return
+        url = f"{SUPABASE_URL}/rest/v1/{table}"
+        payload = json.dumps(records).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, method='POST')
+        req.add_header('apikey', SERVICE_ROLE_KEY)
+        req.add_header('Authorization', f"Bearer {SERVICE_ROLE_KEY}")
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('Prefer', 'resolution=merge-duplicates,return=minimal')
+        try:
+            with urllib.request.urlopen(req) as resp:
+                print(f"  Upserted {len(records)} rows to '{table}' (Status: {resp.getcode()})")
+        except urllib.error.HTTPError as e:
+            print(f"  Upsert error for '{table}': {e.code} {e.read().decode('utf-8')}")
+
+    def supabase_patch(table, match_field, match_value, update_dict):
+        """PATCH (update) rows in a Supabase table that match a condition."""
+        url = f"{SUPABASE_URL}/rest/v1/{table}?{match_field}=eq.{match_value}"
+        payload = json.dumps(update_dict).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, method='PATCH')
+        req.add_header('apikey', SERVICE_ROLE_KEY)
+        req.add_header('Authorization', f"Bearer {SERVICE_ROLE_KEY}")
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('Prefer', 'return=minimal')
+        try:
+            with urllib.request.urlopen(req) as resp:
+                print(f"  Patched rows where {match_field}={match_value} in '{table}' (Status: {resp.getcode()})")
+        except urllib.error.HTTPError as e:
+            print(f"  Patch error for '{table}': {e.code} {e.read().decode('utf-8')}")
+
+    def supabase_select(table, filter_str):
+        """SELECT rows from a Supabase table matching a filter."""
+        url = f"{SUPABASE_URL}/rest/v1/{table}?{filter_str}&select=*"
+        req = urllib.request.Request(url)
+        req.add_header('apikey', SERVICE_ROLE_KEY)
+        req.add_header('Authorization', f"Bearer {SERVICE_ROLE_KEY}")
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read().decode('utf-8'))
+        except Exception as e:
+            print(f"  Select error for '{table}': {e}")
+            return []
+
+    # ── STEP 1: Fill in LAST month's actual sales ──────────────
+    # Training always runs on the 1st of the month.
+    # So today = July 1 → last month = June → prediction_month = '2026-06'
+    today_dt = datetime.now()
+    last_month_dt = today_dt.replace(day=1) - timedelta(days=1)  # Last day of previous month
+    last_month_str = last_month_dt.strftime('%Y-%m')
+    print(f"\n── Step 1: Filling actuals for prediction_month = {last_month_str} ──")
+
+    # Fetch existing forecast rows for last month
+    existing_rows = supabase_select('forecast_accuracy', f'prediction_month=eq.{last_month_str}')
+    print(f"  Found {len(existing_rows)} existing prediction rows for {last_month_str}")
+
+    if existing_rows:
+        # Build actual sales map from real sales data for last month
+        lm_start = pd.Timestamp(last_month_dt.replace(day=1))
+        lm_end   = pd.Timestamp(last_month_dt)
+        lm_details = df_details[
+            (df_details['date_parsed'] >= lm_start) &
+            (df_details['date_parsed'] <= lm_end)
+        ]
+        lm_returns = df_returns[
+            (df_returns['date_parsed'] >= lm_start) &
+            (df_returns['date_parsed'] <= lm_end)
+        ]
+        lm_sales_map = lm_details.groupby(['product_id', 'route_id'])['quantity'].sum().to_dict()
+        lm_returns_map = lm_returns.groupby('product_id')['return_qty'].sum().to_dict()
+        lm_prod_sales = lm_details.groupby('product_id')['quantity'].sum().to_dict()
+
+        updates = []
+        for row in existing_rows:
+            pid  = row.get('product_id')
+            rid  = row.get('route_id')
+            pred = float(row.get('predicted_qty') or 0)
+
+            gross = lm_sales_map.get((pid, rid), 0)
+            prod_ret = lm_returns_map.get(pid, 0)
+            prod_tot = lm_prod_sales.get(pid, 0)
+            ret_share = (gross / prod_tot * prod_ret) if prod_tot > 0 else 0
+            actual = max(0, gross - ret_share)
+
+            mae  = round(abs(pred - actual), 4)
+            mape = round((abs(pred - actual) / actual * 100) if actual > 0 else 0.0, 4)
+
+            updates.append({
+                'id': row['id'],
+                'actual_qty': round(actual, 4),
+                'mae': mae,
+                'mape': mape
+            })
+
+        # Upsert updates (merge on id)
+        print(f"  Updating {len(updates)} rows with actual sales data...")
+        supabase_upsert('forecast_accuracy', updates)
+        avg_mape = round(sum(u['mape'] for u in updates) / len(updates), 2) if updates else 0
+        print(f"  Average MAPE for {last_month_str}: {avg_mape}%")
+    else:
+        print(f"  No existing predictions found for {last_month_str} — skipping actuals update.")
+
+    # ── STEP 2: Write NEXT month's predictions ──────────────
+    # Next month from today: July 1 training → predicting August
+    if today_dt.month == 12:
+        next_month_dt = today_dt.replace(year=today_dt.year + 1, month=1, day=1)
+    else:
+        next_month_dt = today_dt.replace(month=today_dt.month + 1, day=1)
+    next_month_str = next_month_dt.strftime('%Y-%m')
+    print(f"\n── Step 2: Writing predictions for next month = {next_month_str} ──")
+
+    # Get all active product-route pairs from last 90 days of data
+    recent_cutoff = pd.Timestamp(today_dt) - pd.DateOffset(days=90)
+    recent_pairs = df_details[df_details['date_parsed'] >= recent_cutoff][['product_id', 'route_id']].drop_duplicates()
+    print(f"  Generating predictions for {len(recent_pairs)} active product-route pairs...")
+
+    # Build features for next month prediction (same feature engineering as training)
+    total_days_pred = max(1, math.ceil((pd.Timestamp(today_dt) - min_date).total_seconds() / (24 * 3600)))
+    total_months_pred = max(1, math.ceil(total_days_pred / 30))
+
+    pred_month_val = next_month_dt.month
+    pred_month_sin = math.sin(2 * math.pi * pred_month_val / 12)
+    pred_month_cos = math.cos(2 * math.pi * pred_month_val / 12)
+
+    prediction_records = []
+    booster_model = model.get_booster()
+
+    for _, prow in recent_pairs.iterrows():
+        pid = prow['product_id']
+        rid = prow['route_id']
+
+        pair_details = df_details[
+            (df_details['product_id'] == pid) &
+            (df_details['route_id'] == rid)
+        ]
+        if len(pair_details) == 0:
+            continue
+
+        cutoff_now = pd.Timestamp(today_dt)
+        last_7d  = cutoff_now - timedelta(days=7)
+        last_30d = cutoff_now - timedelta(days=30)
+        last_90d = cutoff_now - timedelta(days=90)
+
+        last7  = pair_details[pair_details['date_parsed'] >= last_7d]['quantity'].sum()
+        last30 = pair_details[pair_details['date_parsed'] >= last_30d]['quantity'].sum()
+        last90 = pair_details[pair_details['date_parsed'] >= last_90d]['quantity'].sum()
+
+        # Monthly map for this pair
+        all_months_pred = []
+        curr_m = datetime(min_date.year, min_date.month, 1)
+        while curr_m < today_dt:
+            all_months_pred.append(curr_m.strftime('%Y-%m'))
+            curr_m = (curr_m.replace(day=28) + timedelta(days=4)).replace(day=1)
+        monthly_map_pred = {m: 0.0 for m in all_months_pred}
+        for _, d_row in pair_details.iterrows():
+            mk = d_row['date_parsed'].strftime('%Y-%m')
+            if mk in monthly_map_pred:
+                monthly_map_pred[mk] += d_row['quantity']
+        monthly_avg_pred = sum(monthly_map_pred.values()) / max(1, len(monthly_map_pred))
+
+        prod_gross = full_prod_gross.get(pid, 0)
+        prod_ret   = full_prod_returns.get(pid, 0)
+        overall_avg_monthly_pred = max(0, prod_gross - prod_ret) / total_months_pred
+
+        route_all = df_details[df_details['route_id'] == rid]
+        route_totals = route_all.groupby('product_id').agg(total=('quantity','sum'), visits=('quantity','count'))
+        route_avg_all_pred = (route_totals['total'] / route_totals['visits']).mean() if len(route_totals) > 0 else 0
+        visits_pred = len(pair_details)
+        route_item_avg_pred = pair_details['quantity'].sum() / visits_pred if visits_pred > 0 else 0
+
+        growth_rate_pred = 0.0
+        if len(all_months_pred) >= 2:
+            m1 = monthly_map_pred.get(all_months_pred[-1], 0)
+            m2 = monthly_map_pred.get(all_months_pred[-2], 0)
+            if m2 > 0:
+                growth_rate_pred = ((m1 - m2) / m2) * 100
+
+        days_sold_pred = pair_details['date_parsed'].dt.strftime('%Y-%m-%d').nunique()
+        frequency_pred = (days_sold_pred / total_days_pred) * 100
+        customer_coverage_pred = pair_details['customer_id'].nunique()
+        latest_sale = pair_details['date_parsed'].max()
+        days_since_last_pred = (cutoff_now - latest_sale).days if pd.notna(latest_sale) else 999
+        seasonal_index_pred = (monthly_avg_pred / overall_avg_monthly_pred) if overall_avg_monthly_pred > 0 else 1.0
+
+        feat_row = pd.DataFrame([{
+            'item_id_encoded':     item_encodings_final.get(pid, float(np.mean(list(item_encodings_final.values()))) if item_encodings_final else 0.0),
+            'route_id_encoded':    route_encodings_final.get(rid, float(np.mean(list(route_encodings_final.values()))) if route_encodings_final else 0.0),
+            'month_sin':           pred_month_sin,
+            'month_cos':           pred_month_cos,
+            'last7':               float(last7),
+            'last30':              float(last30),
+            'last90':              float(last90),
+            'route_avg_all':       float(route_avg_all_pred),
+            'route_item_avg':      float(route_item_avg_pred),
+            'monthly_avg':         float(monthly_avg_pred),
+            'overall_avg_monthly': float(overall_avg_monthly_pred),
+            'growth_rate':         float(growth_rate_pred),
+            'frequency':           float(frequency_pred),
+            'customer_coverage':   float(customer_coverage_pred),
+            'days_since_last_sale':float(days_since_last_pred),
+            'seasonal_index':      float(seasonal_index_pred),
+        }])[features]
+
+        dmat = xgb.DMatrix(feat_row)
+        raw_pred = float(booster_model.predict(dmat)[0])
+        predicted_qty = max(0.0, round(raw_pred, 4))
+
+        prediction_records.append({
+            'product_id':       pid,
+            'route_id':         rid,
+            'prediction_month': next_month_str,
+            'predicted_qty':    predicted_qty,
+            'model_version':    model_version,
+            'trained_at':       trained_at_str,
+        })
+
+    print(f"  Inserting {len(prediction_records)} prediction rows for {next_month_str}...")
+    # Insert in batches of 200 to stay within API limits
+    batch_size = 200
+    for i in range(0, len(prediction_records), batch_size):
+        supabase_upsert('forecast_accuracy', prediction_records[i:i+batch_size])
+    print(f"  Done. Predictions for {next_month_str} are now stored in forecast_accuracy.")
+
+    print("\n✅ Training complete. Model uploaded. Forecast accuracy records written.")
 
 if __name__ == '__main__':
     train()
