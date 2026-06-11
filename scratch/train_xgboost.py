@@ -412,8 +412,9 @@ def train():
         }
     }
     
-    # Write model.json and model_metadata.json to e:/nmsalesforcastapp/src/services/
-    out_dir = 'e:/nmsalesforcastapp/src/services'
+    # Write model.json and model_metadata.json to src/services/
+    # Use relative paths so this works on both Windows (local) and Linux (GitHub Actions)
+    out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src', 'services')
     os.makedirs(out_dir, exist_ok=True)
     
     with open(os.path.join(out_dir, 'model.json'), 'w') as f:
@@ -496,8 +497,9 @@ def train():
             "python_raw_prediction": float(preds[i])
         })
         
-    os.makedirs('e:/nmsalesforcastapp/scratch', exist_ok=True)
-    with open('e:/nmsalesforcastapp/scratch/test_samples.json', 'w') as f:
+    scratch_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+    os.makedirs(scratch_dir, exist_ok=True)
+    with open(os.path.join(scratch_dir, 'test_samples.json'), 'w') as f:
         json.dump(outputs, f, indent=2)
     print("Test samples generated in scratch/test_samples.json")
 
