@@ -7,7 +7,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import { RefreshCw } from 'lucide-react-native';
 
 export default function DashboardScreen() {
-  const { kpis, salesTrend, loading, error, calculations, lastSynced, refresh, selectedSector, setSelectedSector, monthlyKPIs } = useDashboardData();
+  const { kpis, salesTrend, loading, error, calculations, lastSynced, refresh, selectedSector, setSelectedSector, monthlyKPIs, modelInfo } = useDashboardData();
 
   if (loading) {
     return (
@@ -37,8 +37,11 @@ export default function DashboardScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
-        <View style={styles.syncBox}>
-          <Text style={styles.syncText}>Last synced: {lastSynced}</Text>
+        <View style={styles.syncContainer}>
+          <View style={styles.syncBox}>
+            <Text style={styles.syncText}>Last synced: {lastSynced}</Text>
+          </View>
+          <Text style={styles.modelText}>🤖 AI Model: {modelInfo?.lastTrainedMonth || 'N/A'}</Text>
         </View>
         <TouchableOpacity style={styles.refreshBtn} onPress={refresh}>
           <RefreshCw size={20} color={theme.colors.blue} />
@@ -291,6 +294,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.lg,
   },
+  syncContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
   syncBox: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -301,6 +309,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.green,
     fontFamily: 'Inter_500Medium',
+  },
+  modelText: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Inter_500Medium',
+    marginLeft: 4,
   },
   refreshBtn: {
     width: 40,

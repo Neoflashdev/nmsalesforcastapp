@@ -386,6 +386,8 @@ def train():
         "base_score": float(model.base_score) if model.base_score is not None else 0.5,
         "item_encodings": item_encodings_final,
         "route_encodings": route_encodings_final,
+        "last_trained_month": max_date.strftime('%Y-%m') if not pd.isna(max_date) else 'N/A',
+        "trained_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "global_averages": {
             "item_encoding_fallback": float(np.mean(list(item_encodings_final.values()))) if item_encodings_final else 0.0,
             "route_encoding_fallback": float(np.mean(list(route_encodings_final.values()))) if route_encodings_final else 0.0,

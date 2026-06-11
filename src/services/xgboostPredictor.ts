@@ -18,6 +18,8 @@ export interface ModelMetadata {
   base_score: number;
   item_encodings: Record<string, number>;
   route_encodings: Record<string, number>;
+  last_trained_month?: string;
+  trained_at?: string;
   global_averages: {
     item_encoding_fallback: number;
     route_encoding_fallback: number;
@@ -74,6 +76,16 @@ export async function loadModelDynamically(): Promise<boolean> {
     console.warn("Could not load dynamic model from Supabase Storage. Falling back to local model.", error);
     return false;
   }
+}
+
+/**
+ * Exposes the currently active model's metadata (e.g. trained month).
+ */
+export function getModelInfo() {
+  return {
+    lastTrainedMonth: activeModelMetadata?.last_trained_month || 'N/A',
+    trainedAt: activeModelMetadata?.trained_at || 'N/A'
+  };
 }
 
 /**

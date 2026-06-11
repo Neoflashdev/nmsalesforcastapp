@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchAll } from '../services/supabase';
 import { computeAll } from '../services/calculations';
-import { loadModelDynamically } from '../services/xgboostPredictor';
+import { loadModelDynamically, getModelInfo } from '../services/xgboostPredictor';
 
 export interface OrderItem {
   productId: string;
@@ -24,6 +24,7 @@ interface DashboardData {
   topRevenueRoutes: any[];
   topProfitRoutes: any[];
   lastSynced: string;
+  modelInfo: { lastTrainedMonth: string; trainedAt: string };
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -92,7 +93,8 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
     topProfitCustomers: [],
     topRevenueRoutes: [],
     topProfitRoutes: [],
-    lastSynced: ''
+    lastSynced: '',
+    modelInfo: { lastTrainedMonth: 'N/A', trainedAt: 'N/A' }
   });
   const [rawData, setRawData] = useState<any>(null);
   const [selectedSector, setSelectedSector] = useState<string>('Pelmadulla');
@@ -398,7 +400,8 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
         topProfitCustomers,
         topRevenueRoutes,
         topProfitRoutes,
-        lastSynced: new Date().toLocaleString()
+        lastSynced: new Date().toLocaleString(),
+        modelInfo: getModelInfo()
       });
       setError(null);
     } catch (err: any) {
