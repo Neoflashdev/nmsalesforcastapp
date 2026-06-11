@@ -14,7 +14,8 @@ export default function ReportsScreen() {
     topRevenueCustomers,
     topProfitCustomers,
     topRevenueRoutes,
-    topProfitRoutes
+    topProfitRoutes,
+    customerRevisitAlerts,
   } = useDashboardData();
 
   if (loading) {
@@ -312,6 +313,36 @@ export default function ReportsScreen() {
             </View>
           ))}
         </MotiView>
+
+        {/* Customer Revisit Alerts Section Header */}
+        {customerRevisitAlerts.length > 0 && (
+          <Text style={[styles.sectionHeader, { marginTop: theme.spacing.md }]}>🔔 Customer Revisit Alerts</Text>
+        )}
+
+        {customerRevisitAlerts.length > 0 && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'timing', duration: 300, delay: 600 }}
+            style={styles.card}
+          >
+            <Text style={styles.cardTitle}>⏰ Overdue Customers</Text>
+            <Text style={[styles.itemTitle, { marginBottom: 12, color: theme.colors.textSecondary }]}>
+              Customers who normally reorder every X days but haven't yet
+            </Text>
+            {customerRevisitAlerts.slice(0, 10).map((alert: any) => (
+              <View key={alert.customerId} style={styles.listItem}>
+                <View style={styles.rowBetween}>
+                  <Text style={[styles.itemTitle, { flex: 1 }]}>{alert.customerName}</Text>
+                  <Text style={[styles.itemTitleBold, { color: theme.colors.red }]}>+{alert.overdueDays}d overdue</Text>
+                </View>
+                <Text style={[styles.itemTitle, { fontSize: 11, color: theme.colors.textSecondary, marginTop: 2 }]}>
+                  Avg gap: {alert.avgOrderGapDays}d • Last order: {alert.lastOrderDate} • {alert.daysSinceLastOrder}d ago
+                </Text>
+              </View>
+            ))}
+          </MotiView>
+        )}
 
       </ScrollView>
     </SafeAreaView>

@@ -23,6 +23,8 @@ interface DashboardData {
   topProfitCustomers: any[];
   topRevenueRoutes: any[];
   topProfitRoutes: any[];
+  customerRevisitAlerts: any[];
+  routeVisitForecasts: any[];
   lastSynced: string;
   modelInfo: { lastTrainedMonth: string; trainedAt: string };
   loading: boolean;
@@ -93,6 +95,8 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
     topProfitCustomers: [],
     topRevenueRoutes: [],
     topProfitRoutes: [],
+    customerRevisitAlerts: [],
+    routeVisitForecasts: [],
     lastSynced: '',
     modelInfo: { lastTrainedMonth: 'N/A', trainedAt: 'N/A' }
   });
@@ -387,6 +391,87 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
       const topRevenueRoutes = [...routeMetricsList].sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5);
       const topProfitRoutes = [...routeMetricsList].sort((a: any, b: any) => b.profit - a.profit).slice(0, 5);
 
+      // --- Customer Revisit Alerts ---
+      const customerOrderDatesMap = new Map<string, { name: string; dates: number[] }>();
+      for (const d of filteredDetails) {
+        const cid = d.customer_id;
+        if (!cid) continue;
+        const h = headerMap.get(d.sales_header_id);
+        if (!h) continue;
+        const custObj = rawData.customers.find((c: any) => c.id === cid);
+        const custName = custObj ? custObj.name : 'Unknown';
+        if (custName.toLowerCase().includes('new shop')) continue;
+        if (!customerOrderDatesMap.has(cid)) customerOrderDatesMap.set(cid, { name: custName, dates: [] });
+        const ts = new Date(h.date || h.created_at).getTime();
+        const entry = customerOrderDatesMap.get(cid)!;
+        if (!entry.dates.includes(ts)) entry.dates.push(ts);
+      }
+      const nowDate = new Date();
+      const customerRevisitAlerts: any[] = [];
+      for (const [cid, info] of Array.from(customerOrderDatesMap.entries())) {
+        if (info.dates.length < 2) continue;
+        info.dates.sort((a, b) => a - b);
+        const gaps: number[] = [];
+        for (let i = 1; i < info.dates.length; i++) {
+          gaps.push(Math.round((info.dates[i] - info.dates[i - 1]) / (1000 * 60 * 60 * 24)));
+        }
+        const avgGap = Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length);
+        const lastOrderDate = new Date(info.dates[info.dates.length - 1]);
+        const daysSinceLast = Math.floor((nowDate.getTime() - lastOrderDate.getTime()) / (1000 * 60 * 60 * 24));
+        const overdueDays = daysSinceLast - avgGap;
+        if (overdueDays > 5) {
+          customerRevisitAlerts.push({
+            customerId: cid,
+            customerName: info.name,
+            avgOrderGapDays: avgGap,
+            daysSinceLastOrder: daysSinceLast,
+            overdueDays,
+            lastOrderDate: lastOrderDate.toISOString().split('T')[0],
+          });
+        }
+      }
+      customerRevisitAlerts.sort((a, b) => b.overdueDays - a.overdueDays);
+
+      // --- Route Visit Forecasts ---
+      const routeVisitForecasts = filteredRoutes.map((r: any) => {
+        const routeCalcs = calculations.filter((c: any) => c.routeData.some((rd: any) => rd.routeId === r.id));
+        const expectedUnits = routeCalcs.reduce((sum: number, c: any) => {
+          const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
+          return sum + (rd ? rd.avgPerVisit : 0);
+        }, 0);
+        const expectedRevenue = routeCalcs.reduce((sum: number, c: any) => {
+          const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
+          if (!rd) return sum;
+          return sum + rd.avgPerVisit * (c.sellingPrice || 0);
+        }, 0);
+        const expectedProfit = routeCalcs.reduce((sum: number, c: any) => {
+          const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
+          if (!rd) return sum;
+          return sum + rd.avgPerVisit * ((c.sellingPrice || 0) - (c.costPrice || 0));
+        }, 0);
+        const totalVisits = routeCalcs.reduce((sum: number, c: any) => {
+          const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
+          return sum + (rd ? rd.visits : 0);
+        }, 0);
+        const avgBillsPerVisit = routeCalcs.length > 0
+          ? Math.round(routeCalcs.reduce((sum: number, c: any) => {
+              const rd = c.routeData.find((rd: any) => rd.routeId === r.id);
+              return sum + (rd ? rd.visits : 0);
+            }, 0) / routeCalcs.length)
+          : 0;
+        return {
+          routeId: r.id,
+          routeName: r.route_name,
+          sector: r.sector,
+          expectedUnits: Math.round(expectedUnits),
+          expectedRevenue: Math.round(expectedRevenue),
+          expectedProfit: Math.round(expectedProfit),
+          productCount: routeCalcs.length,
+          avgBillsPerVisit,
+        };
+      }).filter((r: any) => r.productCount > 0)
+        .sort((a: any, b: any) => b.expectedRevenue - a.expectedRevenue);
+
       setData({
         calculations,
         salesTrend: result.salesTrend,
@@ -400,6 +485,8 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
         topProfitCustomers,
         topRevenueRoutes,
         topProfitRoutes,
+        customerRevisitAlerts,
+        routeVisitForecasts,
         lastSynced: new Date().toLocaleString(),
         modelInfo: getModelInfo()
       });

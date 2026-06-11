@@ -55,6 +55,8 @@ export default function ReorderScreen() {
   const renderItem = ({ item, index }: { item: any, index: number }) => {
     const whyText = item.growthRate > 10 ? '📈 Demand ↑' : item.daysSinceLastSale > 90 ? '🐢 Dead' : (item.stockoutRisk && item.growthRate <= 10) ? '⚠️ Risk' : (item.orderQty > 0 && item.growthRate <= 10 && item.daysSinceLastSale <= 90) ? '📦 Restock' : '';
     const isAdded = orderItems.some((oi) => oi.productId === item.productId);
+    const confidenceColor = item.confidenceLevel === 'High' ? theme.colors.green : item.confidenceLevel === 'Medium' ? theme.colors.yellow : theme.colors.textSecondary;
+    const confidenceBg = item.confidenceLevel === 'High' ? theme.colors.greenBg : item.confidenceLevel === 'Medium' ? theme.colors.yellowBg : theme.colors.border;
 
     return (
       <TouchableOpacity onPress={() => setSelectedItem(item)} activeOpacity={0.8}>
@@ -66,10 +68,31 @@ export default function ReorderScreen() {
         >
           <View style={styles.itemHeader}>
             <Text style={styles.itemName}>{item.productName}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: item.status === 'urgent' ? theme.colors.redBg : item.status === 'soon' ? theme.colors.yellowBg : theme.colors.greenBg }]}>
-              <Text style={[styles.statusText, { color: item.status === 'urgent' ? theme.colors.red : item.status === 'soon' ? theme.colors.yellow : theme.colors.green }]}>{item.statusLabel}</Text>
+            <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+              <View style={[styles.statusBadge, { backgroundColor: confidenceBg }]}>
+                <Text style={[styles.statusText, { color: confidenceColor }]}>
+                  {item.confidenceLevel === 'High' ? '🟢' : item.confidenceLevel === 'Medium' ? '🟡' : '⚪'} {item.confidenceLevel}
+                </Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: item.status === 'urgent' ? theme.colors.redBg : item.status === 'soon' ? theme.colors.yellowBg : theme.colors.greenBg }]}>
+                <Text style={[styles.statusText, { color: item.status === 'urgent' ? theme.colors.red : item.status === 'soon' ? theme.colors.yellow : theme.colors.green }]}>{item.statusLabel}</Text>
+              </View>
             </View>
           </View>
+
+          {/* Stockout date warning */}
+          {item.stockoutDate && item.stockCoverage !== 999 && item.stockCoverage <= 14 && item.currentStock > 0 && (
+            <View style={styles.stockoutWarningRow}>
+              <Text style={styles.stockoutWarningText}>⚡ Stockout on {item.stockoutDate} ({Math.round(item.stockCoverage)}d left)</Text>
+            </View>
+          )}
+
+          {/* Lost sales warning */}
+          {item.lostSalesEstimate > 0 && (
+            <View style={styles.lostSalesRow}>
+              <Text style={styles.lostSalesText}>🚨 Lost Sales Est: ~{item.lostSalesEstimate} units (stock = 0)</Text>
+            </View>
+          )}
           
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
@@ -301,6 +324,9 @@ export default function ReorderScreen() {
                     ['Priority', selectedItem.priorityScore, 'rank'], 
                     ['Purchase Rec', selectedItem.purchaseRec, 'forecast+safety-stock'],
                     ['AI Purchase Rec', selectedItem.aiPurchaseRec, 'AI forecast+safety'],
+                    ['Confidence', selectedItem.confidenceLevel, selectedItem.confidenceLevel === 'High' ? '🟢 High' : selectedItem.confidenceLevel === 'Medium' ? '🟡 Medium' : '⚪ Low'],
+                    ['Stockout Date', selectedItem.stockoutDate || 'N/A', selectedItem.stockCoverage !== 999 ? Math.round(selectedItem.stockCoverage)+'d left' : 'Infinite'],
+                    ['Lost Sales Est', selectedItem.lostSalesEstimate > 0 ? '~'+selectedItem.lostSalesEstimate : '0', selectedItem.lostSalesEstimate > 0 ? '🚨 Est. missed units' : 'OK'],
                   ].map((m: any, i) => (
                     <View key={i} style={styles.metricItem}>
                       <Text style={styles.metricLabel}>{m[0]}</Text>
@@ -624,4 +650,32 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 9, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', color: theme.colors.textSecondary, marginBottom: 4 },
   metricVal: { fontSize: 14, fontFamily: 'Inter_700Bold', color: theme.colors.text },
   metricSub: { fontSize: 10, fontFamily: 'Inter_400Regular', color: theme.colors.textSecondary, marginTop: 2 },
+  stockoutWarningRow: {
+    backgroundColor: theme.colors.orangeBg,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: theme.spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.orange,
+  },
+  stockoutWarningText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    color: theme.colors.orange,
+  },
+  lostSalesRow: {
+    backgroundColor: theme.colors.redBg,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: theme.spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.red,
+  },
+  lostSalesText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    color: theme.colors.red,
+  },
 });

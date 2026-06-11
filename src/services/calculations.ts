@@ -514,6 +514,26 @@ export function computeAll(salesHeaders: any[], salesDetails: any[], products: a
     else if (aiOrderQty > 0) { aiStatus = 'soon'; aiStatusLabel = '🟡 Soon'; }
     if (daysSinceLastSale > 90 && currentStock > 0) { aiStatus = 'dead'; aiStatusLabel = '🐢 Dead Stock'; }
 
+    // Confidence Level (based on sales consistency)
+    let confidenceLevel: 'High' | 'Medium' | 'Low' = 'Low';
+    if (frequency >= 60 && daysSinceLastSale < 30) confidenceLevel = 'High';
+    else if (frequency >= 30 && daysSinceLastSale < 60) confidenceLevel = 'Medium';
+
+    // Stockout Date (today + stockCoverage days)
+    let stockoutDate: string | null = null;
+    if (stockCoverage !== 999 && stockCoverage > 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + Math.round(stockCoverage));
+      stockoutDate = d.toISOString().split('T')[0];
+    } else if (currentStock === 0) {
+      stockoutDate = new Date().toISOString().split('T')[0];
+    }
+
+    // Lost Sales Estimate (only meaningful when stock is currently 0)
+    const lostSalesEstimate = currentStock === 0 && daysSinceLastSale > 0
+      ? Math.round(dailyAvg * Math.min(daysSinceLastSale, 90))
+      : 0;
+
     const routeData = [];
     for (const [rid, rd] of Array.from(routeTotals.entries()) as any) {
       const r = routeMap.get(rid);
@@ -588,6 +608,9 @@ export function computeAll(salesHeaders: any[], salesDetails: any[], products: a
       smartScore: Math.round(smartScore),
       status,
       statusLabel,
+      confidenceLevel,
+      stockoutDate,
+      lostSalesEstimate,
     });
   }
 
