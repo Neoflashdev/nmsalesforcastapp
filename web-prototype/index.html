@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NM Stationaries — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f5f6fa; --card: #fff; --border: #eef0f6;
+      --text: #1a1d2e; --text2: #6b7280;
+      --blue: #2563eb; --blue-bg: #eff6ff;
+      --green: #059669; --green-bg: #ecfdf5;
+      --yellow: #d97706; --yellow-bg: #fffbeb;
+      --red: #dc2626; --red-bg: #fef2f2;
+      --purple: #7c3aed; --purple-bg: #f5f3ff;
+      --orange: #ea580c; --orange-bg: #fff7ed;
+      --radius: 12px; --rsm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,.06);
+      --shadow-lg: 0 4px 24px rgba(0,0,0,.08);
+      --nav: 64px; --bnav: 72px;
+      --font: 'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html { font-size:15px; }
+    body {
+      font-family: var(--font); background:var(--bg); color:var(--text);
+      padding: 0 0 var(--bnav); min-height:100vh;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* Top nav */
+    .top-nav {
+      position:sticky; top:0; z-index:50;
+      background:var(--card); border-bottom:1px solid var(--border);
+      padding:0 20px; height:var(--nav);
+      display:flex; align-items:center; gap:12px;
+    }
+    .top-nav .logo { font-weight:700; font-size:1.15rem; color:var(--blue); display:flex; align-items:center; gap:8px; }
+    .top-nav .logo svg { width:28px; height:28px; }
+    .top-nav .search-box { flex:1; max-width:360px; position:relative; margin-left:auto; }
+    .top-nav .search-box input {
+      width:100%; padding:8px 14px 8px 36px;
+      border:1px solid var(--border); border-radius:100px;
+      background:var(--bg); font-size:.875rem; outline:none;
+    }
+    .top-nav .search-box input:focus { border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-bg); }
+    .top-nav .search-box svg {
+      position:absolute; left:12px; top:50%; transform:translateY(-50%);
+      width:16px; height:16px; color:var(--text2);
+    }
+
+    /* Filter chips */
+    .filter-bar { display:flex; gap:8px; padding:16px 20px 0; flex-wrap:wrap; overflow-x:auto; }
+    .filter-bar::-webkit-scrollbar { display:none; }
+    .chip {
+      padding:6px 16px; border-radius:100px;
+      border:1px solid var(--border); background:var(--card);
+      font-size:.8rem; font-weight:500; cursor:pointer; white-space:nowrap;
+      color:var(--text2); transition:.15s;
+    }
+    .chip:hover { border-color:var(--blue); color:var(--blue); }
+    .chip.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+
+    /* KPI cards */
+    .kpi-grid {
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+      gap:12px; padding:16px 20px;
+    }
+    .kpi-card {
+      background:var(--card); border:1px solid var(--border);
+      border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow);
+    }
+    .kpi-card .label { font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:.4px; color:var(--text2); margin-bottom:6px; }
+    .kpi-card .value { font-size:1.6rem; font-weight:700; line-height:1.2; }
+    .kpi-card .sub { font-size:.78rem; color:var(--text2); margin-top:4px; }
+    .kpi-card .badge { display:inline-block; font-size:.7rem; font-weight:600; padding:2px 10px; border-radius:100px; margin-top:6px; }
+    .badge.red { background:var(--red-bg); color:var(--red); }
+    .badge.green { background:var(--green-bg); color:var(--green); }
+    .badge.yellow { background:var(--yellow-bg); color:var(--yellow); }
+    .badge.orange { background:var(--orange-bg); color:var(--orange); }
+
+    /* Tables */
+    .section { padding:8px 20px; }
+    .section-title { font-size:.9rem; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+    .section-title span { color:var(--text2); font-weight:400; }
+    .table-wrap { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); }
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.4px; color:var(--text2); padding:10px 14px; background:var(--bg); border-bottom:1px solid var(--border); }
+    td { font-size:.85rem; padding:11px 14px; border-bottom:1px solid var(--border); }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:var(--blue-bg); cursor:pointer; }
+    .text-right { text-align:right; }
+    .text-center { text-align:center; }
+    .mono { font-variant-numeric:tabular-nums; }
+
+    /* Bottom nav */
+    .bottom-nav {
+      position:fixed; bottom:0; left:0; right:0; z-index:100;
+      background:var(--card); border-top:1px solid var(--border);
+      height:var(--bnav); display:flex; align-items:stretch; justify-content:space-around;
+      padding:0 env(safe-area-inset-bottom);
+    }
+    .bottom-nav button {
+      flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+      font-size:.65rem; font-weight:500; color:var(--text2);
+      cursor:pointer; transition:.15s; border:none; background:none; padding:4px 0;
+      position:relative;
+    }
+    .bottom-nav button svg { width:24px; height:24px; }
+    .bottom-nav button.active { color:var(--blue); }
+    .bottom-nav button .badge {
+      position:absolute; top:4px; right:50%; transform:translateX(calc(50% + 14px));
+      background:var(--red); color:#fff; font-size:.6rem; font-weight:700;
+      padding:1px 6px; border-radius:100px; min-width:18px; text-align:center;
+    }
+
+    /* Pages */
+    .page { display:none; }
+    .page.active { display:block; }
+    .page-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px 4px; }
+    .page-header h2 { font-size:1.1rem; font-weight:600; }
+    .page-header .count { font-size:.8rem; color:var(--text2); font-weight:400; }
+    .empty-state { text-align:center; padding:60px 20px; color:var(--text2); }
+
+    /* Modal */
+    .modal-overlay {
+      display:none; position:fixed; inset:0; z-index:200;
+      background:rgba(0,0,0,.4); backdrop-filter:blur(4px);
+      overflow-y:auto; padding:20px;
+    }
+    .modal-overlay.open { display:flex; align-items:flex-start; justify-content:center; padding-top:40px; }
+    .modal {
+      background:var(--card); border-radius:var(--radius); max-width:640px; width:100%;
+      padding:24px; box-shadow:var(--shadow-lg); margin-bottom:40px; position:relative;
+    }
+    .modal-close {
+      position:absolute; right:16px; top:16px;
+      border:none; background:none; font-size:1.4rem; cursor:pointer; color:var(--text2);
+      width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:50%;
+    }
+    .modal-close:hover { background:var(--bg); }
+    .modal h3 { font-size:1.15rem; margin-bottom:4px; }
+    .modal .subtitle { font-size:.8rem; color:var(--text2); margin-bottom:16px; }
+    .rec-box {
+      background:var(--blue-bg); border-radius:var(--rsm);
+      padding:16px 20px; display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:16px; flex-wrap:wrap; gap:10px;
+    }
+    .rec-box .rl { font-size:.78rem; color:var(--text2); }
+    .rec-box .rv { font-size:1.5rem; font-weight:700; color:var(--blue); }
+    .rec-box .rr { font-size:.78rem; color:var(--text2); width:100%; }
+    .metric-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
+    .metric-item { background:var(--bg); border-radius:var(--rsm); padding:12px 14px; }
+    .metric-item .ml { font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:var(--text2); margin-bottom:4px; }
+    .metric-item .mv { font-size:1.05rem; font-weight:600; }
+    .metric-item .ms { font-size:.72rem; color:var(--text2); margin-top:2px; }
+
+    /* Route */
+    .route-selector { display:flex; gap:8px; padding:0 20px 12px; flex-wrap:wrap; }
+    .route-chip {
+      padding:8px 18px; border-radius:100px;
+      border:1px solid var(--border); background:var(--card);
+      font-size:.8rem; font-weight:500; cursor:pointer;
+    }
+    .route-chip:hover { border-color:var(--blue); }
+    .route-chip.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+
+    /* Reports */
+    .report-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; padding:0 20px; }
+    .report-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); }
+    .report-card h4 { font-size:.85rem; margin-bottom:10px; }
+    .report-card .r-item { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:.82rem; cursor:pointer; }
+    .report-card .r-item:last-child { border:none; }
+    .report-card .r-item .rv2 { font-weight:600; }
+    .bar-bg { height:4px; background:var(--bg); border-radius:4px; margin:2px 0 8px; }
+    .bar-fill { height:100%; border-radius:4px; background:var(--blue); transition:width .6s ease; }
+
+    /* Chart */
+    .chart-box { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin:0 20px 12px; box-shadow:var(--shadow); }
+    .chart-box h4 { font-size:.82rem; margin-bottom:12px; color:var(--text2); }
+    .chart-box canvas { max-height:200px; }
+
+    /* Error / Loader */
+    .error-bar { background:var(--red-bg); color:var(--red); padding:12px 20px; font-size:.85rem; display:none; align-items:center; gap:8px; border-bottom:1px solid rgba(220,38,38,.15); }
+    .loader { display:flex; align-items:center; justify-content:center; padding:60px 20px; flex-direction:column; gap:12px; color:var(--text2); }
+    .spinner { width:32px; height:32px; border:3px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:s .7s linear infinite; }
+    @keyframes s { to { transform:rotate(360deg); } }
+
+    @media (min-width:768px) { .kpi-grid { grid-template-columns:repeat(5,1fr); } .metric-grid { grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:480px) { .kpi-grid { grid-template-columns:repeat(2,1fr); } .metric-grid { grid-template-columns:repeat(2,1fr); } .report-grid { grid-template-columns:1fr; } .top-nav .search-box { max-width:200px; } .modal { padding:16px; } }
+  </style>
+</head>
+<body>
+
+  <!-- TOP NAV -->
+  <header class="top-nav">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      NM Stock
+      <span id="syncBadge" style="font-size:.65rem;font-weight:400;background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:100px;margin-left:4px">Synced</span>
+    </div>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="Search item..." oninput="filterSearch(this.value)" />
+    </div>
+    <button onclick="refreshData()" id="refreshBtn" style="border:none;background:var(--bg);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem" title="Refresh data from Supabase">🔄</button>
+  </header>
+  <div style="padding:4px 20px;font-size:.7rem;color:var(--text2);display:flex;justify-content:space-between">
+    <span id="lastSyncLabel">Loading...</span>
+    <span id="refreshStatus"></span>
+  </div>
+
+  <!-- LOADER OVERLAY (kept separate from page content) -->
+  <div id="loaderOverlay" style="display:flex;align-items:center;justify-content:center;padding:80px 20px;flex-direction:column;gap:12px;color:var(--text2)">
+    <div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite"></div>
+    <span>Loading NM Stock Data...</span>
+  </div>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
+  <!-- ERROR -->
+  <div class="error-bar" id="errorBar" style="display:none"><span id="errorMsg"></span></div>
+
+  <!-- PAGE: DASHBOARD -->
+  <div id="pageDashboard" class="page active">
+    <div class="kpi-grid" id="kpiGrid"></div>
+    <div class="chart-box"><h4>📈 Sales Trend (Last 12 Months)</h4><canvas id="salesChart"></canvas></div>
+    <div class="section">
+      <div class="section-title">Top Reorder Items <span>— needs your attention</span></div>
+      <div class="table-wrap" id="previewTable"></div>
+    </div>
+  </div>
+
+  <!-- PAGE: REORDER -->
+  <div id="pageReorder" class="page">
+    <div class="page-header"><h2>Reorder <span class="count" id="reorderCount"></span></h2></div>
+    <div class="filter-bar" id="reorderFilters">
+      <button class="chip active" onclick="setFilter('all',this)">All Items</button>
+      <button class="chip" onclick="setFilter('urgent',this)">🔴 Urgent</button>
+      <button class="chip" onclick="setFilter('soon',this)">🟡 Soon</button>
+      <button class="chip" onclick="setFilter('healthy',this)">🟢 Healthy</button>
+      <button class="chip" onclick="setFilter('dead',this)">🐢 Dead Stock</button>
+      <button class="chip" onclick="setFilter('growing',this)">📈 Growing</button>
+    </div>
+    <div class="section"><div class="table-wrap" id="reorderTable"></div></div>
+  </div>
+
+  <!-- PAGE: ROUTES -->
+  <div id="pageRoutes" class="page">
+    <div class="page-header"><h2>Routes <span class="count">— forecast for next visit</span></h2></div>
+    <div class="route-selector" id="routeSelector"></div>
+    <div class="section"><div class="table-wrap" id="routeTable"></div></div>
+  </div>
+
+  <!-- PAGE: REPORTS -->
+  <div id="pageReports" class="page">
+    <div class="page-header"><h2>Reports &amp; Analysis</h2></div>
+    <div class="report-grid" id="reportGrid"></div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="active" data-page="pageDashboard" onclick="nav('pageDashboard',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button data-page="pageReorder" onclick="nav('pageReorder',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span>Reorder</span>
+      <span class="badge" id="reorderBadge" style="display:none">0</span>
+    </button>
+    <button data-page="pageRoutes" onclick="nav('pageRoutes',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>Routes</span>
+    </button>
+    <button data-page="pageReports" onclick="nav('pageReports',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Reports</span>
+    </button>
+  </nav>
+
+  <!-- MODAL -->
+  <div id="itemModal" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <h3 id="modalTitle"></h3>
+      <div class="subtitle" id="modalSubtitle"></div>
+      <div class="rec-box" id="modalRec"></div>
+      <div class="metric-grid" id="modalMetrics"></div>
+    </div>
+  </div>
+
+<script>
+/* ════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════ */
+let state = { calculations: [], kpis: null, salesTrend: [], monthlyBreakdown: [], routeList: [], filtered: [], lastSynced: '' };
+let filter = 'all', search = '', selRoute = null;
+let chart = null;
+
+/* ════════════════════════════════════════════
+   FETCH
+   ════════════════════════════════════════════ */
+async function load() {
+  if (location.protocol === 'file:') return err('Open via <b>http://localhost:3000</b> — run <b>npm start</b>');
+  try {
+    const r = await fetch('/api/data');
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    state.calculations = d.calculations;
+    state.kpis = d.kpis;
+    state.salesTrend = d.salesTrend;
+    state.routeList = d.routeList;
+    state.lastSynced = d.lastSynced || '';
+    state.filtered = [...d.calculations];
+    // Hide loader overlay, show content
+    document.getElementById('loaderOverlay').style.display = 'none';
+    document.getElementById('lastSyncLabel').textContent = 'Last synced: ' + state.lastSynced;
+    renderAll();
+  } catch (e) { err(e.message); }
+}
+
+/* Refresh button: re-fetches from Supabase */
+async function refreshData() {
+  const btn = document.getElementById('refreshBtn');
+  const status = document.getElementById('refreshStatus');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.style.opacity = '.5';
+  status.textContent = 'Refreshing...';
+  try {
+    const r = await fetch('/api/refresh', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      status.textContent = '✅ Refreshed — re-loading...';
+      // Re-fetch the full data
+      const r2 = await fetch('/api/data');
+      const d2 = await r2.json();
+      state.calculations = d2.calculations;
+      state.kpis = d2.kpis;
+      state.salesTrend = d2.salesTrend;
+      state.routeList = d2.routeList;
+      state.lastSynced = d2.lastSynced || '';
+      state.filtered = [...d2.calculations];
+      document.getElementById('lastSyncLabel').textContent = 'Last synced: ' + state.lastSynced;
+      renderAll();
+      status.textContent = '';
+    } else {
+      status.textContent = '❌ ' + (d.error || 'Refresh failed');
+    }
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+  }
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  setTimeout(() => { status.textContent = ''; }, 4000);
+}
+
+function err(m) {
+  const el = document.getElementById('errorMsg');
+  if (el) el.innerHTML = m;
+  const bar = document.getElementById('errorBar');
+  if (bar) bar.style.display = 'flex';
+  // Fallback if errorMsg somehow missing
+  if (!el || !bar) {
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fef2f2;color:#dc2626;padding:16px 20px;font-family:sans-serif';
+    div.innerHTML = '⚠ ' + m;
+    document.body.prepend(div);
+  }
+}
+
+/* ════════════════════════════════════════════
+   RENDER
+   ════════════════════════════════════════════ */
+function renderAll() {
+  renderKPI();
+  renderPreview();
+  renderReorder();
+  renderRoutes();
+  renderReports();
+  renderChart();
+  updateBadge();
+}
+
+/* KPI */
+function renderKPI() {
+  const k = state.kpis;
+  const cards = [
+    { label:'📦 Items Need Reorder', value:k.urgentCount, sub:`${k.zeroStockCount} out of stock`, badge:(k.urgentCount?'red':'green'), bt:k.urgentCount?`${k.urgentCount} urgent`:'All good' },
+    { label:'⚠️ Low Stock', value:k.lowStockCount, sub:`${k.zeroStockCount} zero stock`, badge:(k.lowStockCount?'yellow':null) },
+    { label:'💰 Inventory Value', value:'Rs. '+(k.totalStockValue/1000).toFixed(0)+'k', sub:`Profit Rs.${(k.totalProfit/1000).toFixed(0)}k` },
+    { label:'🐢 Dead Stock', value:k.deadCount+' items', sub:k.totalDeadValue?'Rs.'+(k.totalDeadValue/1000).toFixed(0)+'k':'No dead stock', badge:k.deadCount?{t:'Clear stock',c:'orange'}:null },
+    { label:'📈 Fast Growing', value:k.growingCount+' items', sub:`Revenue Rs.${(k.totalRevenue/1000).toFixed(0)}k`, badge:k.growingCount?{t:k.growingCount+' items',c:'green'}:null },
+  ];
+  document.getElementById('kpiGrid').innerHTML = cards.map(c => `
+    <div class="kpi-card">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="sub">${c.sub}</div>
+      ${c.badge?`<span class="badge ${typeof c.badge==='string'?c.badge:c.badge.c}">${typeof c.badge==='string'?c.bt:c.badge.t}</span>`:''}
+    </div>`).join('');
+}
+
+/* Preview */
+function renderPreview() {
+  const items = state.calculations.filter(c => c.orderQty > 0).sort((a,b) => b.priorityScore - a.priorityScore).slice(0,8);
+  document.getElementById('previewTable').innerHTML = !items.length
+    ? '<div style="padding:20px;text-align:center;color:var(--text2)">✅ All stocked</div>'
+    : `<table><thead><tr><th>Item</th><th>Stock</th><th class="text-right">Need Order</th><th class="text-center">Status</th></tr></thead>
+       <tbody>${items.map(i => `<tr onclick="openModal('${i.productId}')">
+         <td style="font-weight:500">${i.productName}</td>
+         <td>${i.currentStock}</td>
+         <td class="text-right mono" style="font-weight:600">${i.orderQty}</td>
+         <td class="text-center">${i.statusLabel}</td>
+       </tr>`).join('')}</tbody></table>`;
+}
+
+/* Reorder */
+function renderReorder() {
+  const items = getItems().filter(c => c.orderQty > 0 || c.status === 'dead' || c.currentStock <= c.lowStockQty)
+    .sort((a,b) => { const o={urgent:0,soon:1,dead:2,healthy:3,rece:4}; return (o[a.status]||9)-(o[b.status]||9) || b.priorityScore - a.priorityScore; });
+  document.getElementById('reorderCount').textContent = `— ${items.length} items`;
+  if (!items.length) { document.getElementById('reorderTable').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text2)">✅ All good</div>'; return; }
+  document.getElementById('reorderTable').innerHTML = `<table><thead><tr>
+    <th>Item</th><th class="text-right">Stock</th><th class="text-right">Last 30d</th><th class="text-right">Need Order</th><th class="text-center">Status</th><th class="text-center">Why</th>
+  </tr></thead><tbody>${items.map(i => `
+    <tr onclick="openModal('${i.productId}')">
+      <td style="font-weight:500">${i.productName}</td>
+      <td class="text-right mono">${i.currentStock}${i.currentStock===0?' 🚫':i.currentStock<=i.lowStockQty?' ⚠':''}</td>
+      <td class="text-right mono">${i.last30}</td>
+      <td class="text-right mono" style="font-weight:700;color:${i.orderQty>50?'var(--red)':i.orderQty>20?'var(--yellow)':'var(--green)'}">${i.orderQty}</td>
+      <td class="text-center">${i.statusLabel}</td>
+      <td class="text-center" style="font-size:.78rem;color:var(--text2)">${i.growthRate>10?'📈 Demand ↑':''}${i.daysSinceLastSale>90?'🐢 Dead':''}${i.stockoutRisk&&i.growthRate<=10?'⚠️ Risk':''}${i.orderQty>0&&i.growthRate<=10&&i.daysSinceLastSale<=90?'📦 Restock':''}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+/* Routes */
+function renderRoutes() {
+  const sel = document.getElementById('routeSelector');
+  if (!state.routeList.length) { sel.innerHTML = 'No routes'; return; }
+  sel.innerHTML = state.routeList.map(r => `<button class="route-chip${selRoute===r.id?' active':''}" onclick="selectRoute('${r.id}')">${r.name}</button>`).join('');
+  if (!selRoute && state.routeList.length) selRoute = state.routeList[0].id;
+  renderRouteForecast();
+}
+
+function renderRouteForecast() {
+  const route = state.routeList.find(r => r.id === selRoute);
+  if (!route) { document.getElementById('routeTable').innerHTML = '<div class="empty-state"><p>Select a route</p></div>'; return; }
+  const items = state.calculations.filter(c => c.routeData.some(r => r.routeId === selRoute))
+    .sort((a,b) => (b.routeData.find(r=>r.routeId===selRoute)?.total||0) - (a.routeData.find(r=>r.routeId===selRoute)?.total||0));
+  if (!items.length) { document.getElementById('routeTable').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text2)">No sales for this route</div>'; return; }
+  const total = items.reduce((s,i) => s + (i.routeData.find(r=>r.routeId===selRoute)?.avgPerVisit||0), 0);
+  document.getElementById('routeTable').innerHTML = `<table><thead><tr>
+    <th>Item</th><th class="text-right">Route Total</th><th class="text-right">Visits</th><th class="text-right">Avg/Visit</th><th class="text-right">Expected</th><th class="text-right">Stock</th>
+  </tr></thead><tbody>${items.map(i => {
+    const rd = i.routeData.find(r=>r.routeId===selRoute);
+    if (!rd) return '';
+    return `<tr onclick="openModal('${i.productId}')">
+      <td style="font-weight:500">${i.productName}</td>
+      <td class="text-right mono">${rd.total}</td>
+      <td class="text-right mono">${rd.visits}</td>
+      <td class="text-right mono" style="font-weight:600">${rd.avgPerVisit}</td>
+      <td class="text-right mono" style="font-weight:700;color:${i.currentStock>=rd.avgPerVisit?'var(--green)':'var(--red)'}">${rd.avgPerVisit}</td>
+      <td class="text-right mono" style="color:${i.currentStock<rd.avgPerVisit?'var(--red)':'var(--green)'}">${i.currentStock}</td>
+    </tr>`;
+  }).join('')}</tbody></table>
+  <div style="padding:12px 16px;background:var(--blue-bg);font-size:.82rem;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+    <span>✅ <strong>${route.name}</strong> — ${route.sector}</span>
+    <span>Expected: <strong>${total} units</strong></span>
+  </div>`;
+}
+
+/* Reports */
+function renderReports() {
+  const all = state.calculations;
+  const topRev = [...all].sort((a,b) => b.revenue - a.revenue).slice(0,10);
+  const dead = all.filter(c => c.status === 'dead' || c.daysSinceLastSale > 90).sort((a,b) => b.stockValue - a.stockValue).slice(0,10);
+  const fast = all.filter(c => c.growthRate > 5 && c.totalQty > 0).sort((a,b) => b.growthRate - a.growthRate).slice(0,10);
+  const abcA = all.filter(c => c.abcClass === 'A').length;
+  const abcB = all.filter(c => c.abcClass === 'B').length;
+  const abcC = all.filter(c => c.abcClass === 'C').length;
+  const totRev = all.reduce((s,c) => s + c.revenue, 0);
+  const totProfit = all.reduce((s,c) => s + c.profit, 0);
+  const margin = totRev > 0 ? ((totProfit/totRev)*100).toFixed(1) : 0;
+  const smart = [...all].sort((a,b) => b.smartScore - a.smartScore).slice(0,7);
+  const turnover = [...all].sort((a,b) => b.stockTurnover - a.stockTurnover).slice(0,7);
+
+  document.getElementById('reportGrid').innerHTML = `
+    <div class="report-card"><h4>🏆 Top Revenue</h4>${topRev.map((i,idx) => `<div class="r-item" onclick="openModal('${i.productId}')"><span>${idx+1}. ${i.productName}</span><span class="rv2">Rs.${(i.revenue/1000).toFixed(0)}k</span></div><div class="bar-bg"><div class="bar-fill" style="width:${(i.revenue/(topRev[0]?.revenue||1))*100}%"></div></div>`).join('')}</div>
+    <div class="report-card"><h4>🐢 Dead Stock</h4>${dead.length?dead.map(i => `<div class="r-item" onclick="openModal('${i.productId}')"><span>${i.productName} <span style="font-size:.75rem;color:var(--text2)">(${i.daysSinceLastSale}d)</span></span><span class="rv2" style="color:var(--red)">Rs.${(i.stockValue/1000).toFixed(0)}k</span></div>`).join(''):'<div class="r-item"><span>✅ None</span></div>'}</div>
+    <div class="report-card"><h4>📈 Fast Movers</h4>${fast.slice(0,7).map(i => `<div class="r-item" onclick="openModal('${i.productId}')"><span>${i.productName}</span><span class="rv2" style="color:var(--green)">+${i.growthRate}%</span></div>`).join('')}</div>
+    <div class="report-card"><h4>📊 ABC Analysis</h4><div class="r-item"><span>A</span><span class="rv2" style="color:var(--blue)">${abcA}</span></div><div class="bar-bg"><div class="bar-fill" style="width:70%;background:var(--blue)"></div></div><div class="r-item"><span>B</span><span class="rv2" style="color:var(--green)">${abcB}</span></div><div class="bar-bg"><div class="bar-fill" style="width:20%;background:var(--green)"></div></div><div class="r-item"><span>C</span><span class="rv2">${abcC}</span></div><div class="bar-bg"><div class="bar-fill" style="width:10%;background:var(--text2)"></div></div><div style="margin-top:8px;font-size:.78rem;color:var(--text2)">Margin ${margin}% · Rev Rs.${(totRev/1000).toFixed(0)}k</div></div>
+    <div class="report-card"><h4>⚡ Smart NM Score</h4>${smart.map((i,idx) => `<div class="r-item" onclick="openModal('${i.productId}')"><span>${idx+1}. ${i.productName}</span><span class="rv2" style="color:var(--blue)">${i.smartScore}</span></div>`).join('')}</div>
+    <div class="report-card"><h4>🔄 Stock Turnover</h4>${turnover.map(i => `<div class="r-item" onclick="openModal('${i.productId}')"><span>${i.productName}</span><span class="rv2">${i.stockTurnover}x</span></div>`).join('')}</div>
+  `;
+}
+
+/* Chart */
+function renderChart() {
+  if (!state.salesTrend.length) return;
+  const ctx = document.getElementById('salesChart').getContext('2d');
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels: state.salesTrend.map(e=>e[0]), datasets:[{ label:'Sales', data:state.salesTrend.map(e=>e[1]), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.3, pointRadius:3, borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true, ticks:{ callback:v=>'Rs.'+(v/1000).toFixed(0)+'k' } } } }
+  });
+}
+
+/* Modal */
+function openModal(pid) {
+  const c = state.calculations.find(x => x.productId === pid);
+  if (!c) return;
+  document.getElementById('modalTitle').textContent = c.productName;
+  document.getElementById('modalSubtitle').textContent = `ABC: ${c.abcClass} ● Sold: ${c.totalQty} ● Rs.${(c.revenue/1000).toFixed(0)}k`;
+  document.getElementById('modalRec').innerHTML = `
+    <div><div class="rl">Stock</div><div style="font-size:1.3rem;font-weight:700;color:${c.currentStock===0?'var(--red)':c.currentStock<=c.lowStockQty?'var(--yellow)':'var(--green)'}">${c.currentStock}</div></div>
+    <div><div class="rl">Need Order</div><div class="rv">${c.orderQty}</div></div>
+    <div><div class="rl">Status</div><div style="font-size:1.1rem">${c.statusLabel}</div></div>
+    <div style="width:100%"><div class="rr">Last 30d: ${c.last30} · Route avg: ${c.routeAvgAll} · ${c.growthRate>0?'+':''}${c.growthRate}% · ${c.routeCoverage} routes · ${c.trendScore}</div></div>`;
+  const m = [
+    ['Total Qty',c.totalQty,'all time'], ['Daily Avg',c.dailyAvg.toFixed(1),'per day'], ['Monthly Avg',c.monthlyAvg,'last months'],
+    ['Last 7 Days',c.last7,'recent'], ['Last 30 Days',c.last30,''], ['Last 90 Days',c.last90,''],
+    ['Route Avg',c.routeAvgAll,c.routeCoverage+' routes'], ['Last 3 Visits',c.last3RouteAvg,'avg'],
+    ['Growth Rate',c.growthRate+'%',c.growthRate>0?'📈 Rising':c.growthRate<0?'📉':'→ Stable'],
+    ['Frequency',c.frequency+'%',''], ['Customer Coverage',c.customerCoverage,''], ['Route Coverage',c.routeCoverage,'routes'],
+    ['Days Since Sale',c.daysSinceLastSale+'d',c.daysSinceLastSale>90?'🐢':c.daysSinceLastSale>30?'⚠️':'✅'],
+    ['Lead Time Demand',c.leadTimeDemand,'7 days'], ['Safety Stock',c.safetyStock,'20%'], ['Reorder Point',c.reorderPoint,''],
+    ['Stock Coverage',c.stockCoverage===999?'∞':c.stockCoverage+'d',''], ['Revenue','Rs.'+(c.revenue/1000).toFixed(1)+'k',''],
+    ['Profit','Rs.'+(c.profit/1000).toFixed(1)+'k',c.revenue?'Margin '+((c.profit/c.revenue)*100).toFixed(1)+'%':''],
+    ['Stock Value','Rs.'+(c.stockValue/1000).toFixed(1)+'k',''], ['Turnover',c.stockTurnover+'x',''],
+    ['Seasonal Index',c.seasonalIndex.toFixed(2),c.seasonalIndex>1.2?'📈':c.seasonalIndex<0.8?'📉':'Normal'],
+    ['Next Month',c.nextMonthForecast,'forecast'], ['NM Score',c.smartScore+'/100',c.smartScore>70?'🌟':c.smartScore>40?'⭐':''],
+    ['Health',c.healthScore+'/100',c.healthScore>70?'✅':c.healthScore>40?'⚠️':'🔴'],
+    ['Priority',c.priorityScore,'rank'], ['Purchase Rec',c.purchaseRec,'forecast+safety-stock'],
+  ];
+  document.getElementById('modalMetrics').innerHTML = m.map(x => `<div class="metric-item"><div class="ml">${x[0]}</div><div class="mv">${x[1]}</div><div class="ms">${x[2]}</div></div>`).join('');
+  document.getElementById('itemModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() { document.getElementById('itemModal').classList.remove('open'); document.body.style.overflow = ''; }
+
+/* ════════════════════════════════════════════
+   UI HELPERS
+   ════════════════════════════════════════════ */
+function getItems() {
+  let items = [...state.calculations];
+  if (search) { const q = search.toLowerCase(); items = items.filter(c => c.productName.toLowerCase().includes(q)); }
+  switch (filter) {
+    case 'urgent': items = items.filter(c => c.status === 'urgent' || c.currentStock === 0); break;
+    case 'soon': items = items.filter(c => c.status === 'soon'); break;
+    case 'healthy': items = items.filter(c => c.status === 'healthy'); break;
+    case 'dead': items = items.filter(c => c.status === 'dead'); break;
+    case 'growing': items = items.filter(c => c.growthRate > 10 && c.totalQty > 0); break;
+  }
+  return items;
+}
+
+function setFilter(f, btn) {
+  filter = f;
+  document.querySelectorAll('#reorderFilters .chip').forEach(c => c.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderReorder();
+}
+
+function filterSearch(q) { search = q; renderReorder(); }
+
+function selectRoute(id) { selRoute = id; document.querySelectorAll('.route-chip').forEach(c => c.classList.remove('active')); renderRouteForecast(); }
+
+function nav(pageId, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(n => n.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function updateBadge() {
+  const n = state.calculations.filter(c => c.status === 'urgent' || c.currentStock === 0).length;
+  const b = document.getElementById('reorderBadge');
+  if (n > 0) { b.textContent = n; b.style.display = 'block'; } else b.style.display = 'none';
+}
+
+/* ════════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', load);
+</script>
+</body>
+</html>

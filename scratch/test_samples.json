@@ -1,0 +1,94 @@
+[
+  {
+    "id": 1,
+    "features": {
+      "item_id_encoded": 0.0,
+      "route_id_encoded": 0.0,
+      "month_sin": 0.0,
+      "month_cos": 0.0,
+      "last7": 0.0,
+      "last30": 0.0,
+      "last90": 0.0,
+      "route_avg_all": 0.0,
+      "route_item_avg": 0.0,
+      "monthly_avg": 0.0,
+      "overall_avg_monthly": 0.0,
+      "growth_rate": 0.0,
+      "frequency": 0.0,
+      "customer_coverage": 0.0,
+      "days_since_last_sale": 0.0,
+      "seasonal_index": 0.0
+    },
+    "python_prediction": 1.8207356929779053,
+    "python_raw_prediction": 1.8207356929779053
+  },
+  {
+    "id": 2,
+    "features": {
+      "item_id_encoded": 55.2,
+      "route_id_encoded": 120.5,
+      "month_sin": 0.5,
+      "month_cos": 0.86,
+      "last7": 5.0,
+      "last30": 25.0,
+      "last90": 70.0,
+      "route_avg_all": 12.4,
+      "route_item_avg": 8.2,
+      "monthly_avg": 22.0,
+      "overall_avg_monthly": 20.0,
+      "growth_rate": 12.5,
+      "frequency": 45.0,
+      "customer_coverage": 8.0,
+      "days_since_last_sale": 3.0,
+      "seasonal_index": 1.1
+    },
+    "python_prediction": 7.361316680908203,
+    "python_raw_prediction": 7.361316680908203
+  },
+  {
+    "id": 3,
+    "features": {
+      "item_id_encoded": 350.0,
+      "route_id_encoded": 800.0,
+      "month_sin": -0.86,
+      "month_cos": -0.5,
+      "last7": 80.0,
+      "last30": 310.0,
+      "last90": 950.0,
+      "route_avg_all": 45.0,
+      "route_item_avg": 35.0,
+      "monthly_avg": 320.0,
+      "overall_avg_monthly": 300.0,
+      "growth_rate": -5.0,
+      "frequency": 95.0,
+      "customer_coverage": 42.0,
+      "days_since_last_sale": 0.0,
+      "seasonal_index": 1.07
+    },
+    "python_prediction": 77.94801330566406,
+    "python_raw_prediction": 77.94801330566406
+  },
+  {
+    "id": 4,
+    "features": {
+      "item_id_encoded": 12.0,
+      "route_id_encoded": 50.0,
+      "month_sin": 0.0,
+      "month_cos": -1.0,
+      "last7": 0.0,
+      "last30": 0.0,
+      "last90": 0.0,
+      "route_avg_all": 2.0,
+      "route_item_avg": 0.0,
+      "monthly_avg": 1.0,
+      "overall_avg_monthly": 1.2,
+      "growth_rate": 0.0,
+      "frequency": 1.0,
+      "customer_coverage": 0.0,
+      "days_since_last_sale": 120.0,
+      "seasonal_index": 0.83
+    },
+    "python_prediction": 0.0,
+    "python_raw_prediction": -0.16447578370571136
+  }
+]
