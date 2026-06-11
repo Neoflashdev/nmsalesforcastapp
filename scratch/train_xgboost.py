@@ -581,7 +581,7 @@ def train():
     today_dt = datetime.now()
     last_month_dt = today_dt.replace(day=1) - timedelta(days=1)  # Last day of previous month
     last_month_str = last_month_dt.strftime('%Y-%m')
-    print(f"\n── Step 1: Filling actuals for prediction_month = {last_month_str} ──")
+    print(f"\n-- Step 1: Filling actuals for prediction_month = {last_month_str} --")
 
     # Fetch existing forecast rows for last month
     existing_rows = supabase_select('forecast_accuracy', f'prediction_month=eq.{last_month_str}')
@@ -631,7 +631,7 @@ def train():
         avg_mape = round(sum(u['mape'] for u in updates) / len(updates), 2) if updates else 0
         print(f"  Average MAPE for {last_month_str}: {avg_mape}%")
     else:
-        print(f"  No existing predictions found for {last_month_str} — skipping actuals update.")
+        print(f"  No existing predictions found for {last_month_str} - skipping actuals update.")
 
     # ── STEP 2: Write NEXT month's predictions ──────────────
     # Next month from today: July 1 training → predicting August
@@ -640,7 +640,7 @@ def train():
     else:
         next_month_dt = today_dt.replace(month=today_dt.month + 1, day=1)
     next_month_str = next_month_dt.strftime('%Y-%m')
-    print(f"\n── Step 2: Writing predictions for next month = {next_month_str} ──")
+    print(f"\n-- Step 2: Writing predictions for next month = {next_month_str} --")
 
     # Get all active product-route pairs from last 90 days of data
     recent_cutoff = pd.Timestamp(today_dt) - pd.DateOffset(days=90)
@@ -754,7 +754,7 @@ def train():
         supabase_upsert('forecast_accuracy', prediction_records[i:i+batch_size])
     print(f"  Done. Predictions for {next_month_str} are now stored in forecast_accuracy.")
 
-    print("\n✅ Training complete. Model uploaded. Forecast accuracy records written.")
+    print("\n[SUCCESS] Training complete. Model uploaded. Forecast accuracy records written.")
 
 if __name__ == '__main__':
     train()

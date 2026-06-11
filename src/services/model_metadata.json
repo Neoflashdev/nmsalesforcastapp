@@ -1,4 +1,5 @@
 {
+  "model_version": "v4",
   "features": [
     "item_id_encoded",
     "route_id_encoded",
@@ -367,6 +368,8 @@
     "all-ed09a52d-3a59-40ee-9acb-157138998a94": 1585.5,
     "all-fb756528-64eb-4d31-97e7-15f6e7567ffc": 1137.0833333333333
   },
+  "last_trained_month": "2026-06",
+  "trained_at": "2026-06-11 16:16:06",
   "global_averages": {
     "item_encoding_fallback": 69.5905572755418,
     "route_encoding_fallback": 1029.3030303030303,
